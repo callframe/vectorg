@@ -65,20 +65,6 @@ struct Command command_line_to(struct Vec2 line_to)
   return (struct Command){.type = Command_Type_Line_To, .line_to = line_to};
 }
 
-struct Mesh
-{
-  struct Vec2_Array vertices;
-  struct UInt32_Array indices;
-};
-
-#define mesh_new() ((struct Mesh){vec2_array_new(), uint32_array_new()})
-
-void mesh_drop(struct Mesh* mesh)
-{
-  vec2_array_drop(&mesh->vertices);
-  uint32_array_drop(&mesh->indices);
-}
-
 bool box_to(struct Vec2 top_left, struct Vec2 bottom_right, struct Command_Array* cmds)
 {
   struct Command cmd = command_move_to(top_left);
@@ -115,6 +101,51 @@ bool box_to(struct Vec2 top_left, struct Vec2 bottom_right, struct Command_Array
   return true;
 }
 
+struct Contour
+{
+  struct Vec2_Array vertices;
+  bool is_closed;
+};
+
+#define contour_new() ((struct Contour){vec2_array_new(), false})
+
+void contour_drop(struct Contour* contour) {
+  vec2_array_drop(&contour->vertices);
+  *contour = contour_new();
+}
+
+// TODO: handle sub-paths
+bool contour_for(struct Command_Array cmds, struct Contour* contour)
+{
+  assert(contour->vertices.len == 0);
+  struct Vec2 cursor = vec2_new(0, 0);
+
+  for (size_t i = 0; i < cmds.len; ++i)
+  {
+    struct Command const* cmd = command_array_at(cmds, i);
+    switch (cmd->type)
+    {
+      case Command_Type_Move_To:
+        cursor = cmd->move_to;
+        break;
+      case Command_Type_Line_To:
+        cursor = cmd->line_to;
+        break;
+      case Command_Type_Close:
+        contour->is_closed = true;
+        goto exit;
+    }
+
+    if (!vec2_array_push(&contour->vertices, cursor))
+    {
+      return false;
+    }
+  }
+
+exit:
+  return true;
+}
+
 int main(int argc, char* argv[])
 {
   if (argc < 2)
@@ -131,12 +162,23 @@ int main(int argc, char* argv[])
   }
 
   struct Command_Array box = {0};
-  if(!box_to(vec2_new(400, 500), vec2_new(800, 900), &box)) {
+  if (!box_to(vec2_new(400, 500), vec2_new(800, 900), &box))
+  {
     fprintf(stderr, "failed to construct commands for box\n");
     free(fb);
     return 1;
   }
 
+  struct Contour contour = contour_new();
+  if (!contour_for(box, &contour))
+  {
+    fprintf(stderr, "failed to compute contour for shape");
+    command_array_drop(&box);
+    free(fb);
+    return 1;
+  }
+
+  contour_drop(&contour);
   command_array_drop(&box);
 
   stbi_write_png(argv[1], FB_WIDTH, FB_HEIGHT, sizeof(uint32_t), fb, FB_WIDTH * sizeof(uint32_t));

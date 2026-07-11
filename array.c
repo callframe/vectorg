@@ -29,7 +29,7 @@
 struct __ARRAY_NAME
 {
   __ARRAY_T* items;
-  size_t size;
+  size_t len;
   size_t capacity;
 };
 
@@ -86,13 +86,13 @@ bool __ARRAY_CONCAT(__ARRAY_FUNCS_NAME, _resize)(struct __ARRAY_NAME* array, siz
 
 bool __ARRAY_CONCAT(__ARRAY_FUNCS_NAME, _reserve)(struct __ARRAY_NAME* array, size_t extra_capacity)
 {
-  if (array->capacity >= array->size + extra_capacity)
+  if (array->capacity >= array->len + extra_capacity)
   {
     return true;
   }
 
   size_t new_capacity = __ARRAY_CONCAT(__ARRAY_FUNCS_NAME, _next_capacity)(
-      array->capacity, array->size + extra_capacity);
+      array->capacity, array->len + extra_capacity);
   return __ARRAY_CONCAT(__ARRAY_FUNCS_NAME, _resize)(array, new_capacity);
 }
 
@@ -103,8 +103,8 @@ bool __ARRAY_CONCAT(__ARRAY_FUNCS_NAME, _push)(struct __ARRAY_NAME* array, __ARR
     return false;
   }
 
-  *__ARRAY_CONCAT(__ARRAY_FUNCS_NAME, _at)(*array, array->size) = item;
-  array->size++;
+  *__ARRAY_CONCAT(__ARRAY_FUNCS_NAME, _at)(*array, array->len) = item;
+  array->len++;
   return true;
 }
 
