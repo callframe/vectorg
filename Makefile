@@ -1,5 +1,5 @@
 CC = clang
-CFLAGS = -std=c17 -Wall -Wextra -MMD -MP
+CFLAGS = -std=c17 -g -Wall -Wextra -MMD -MP
 LDFLAGS =
 
 TOPDIR = .

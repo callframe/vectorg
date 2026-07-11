@@ -154,10 +154,10 @@ float get_winding(struct Contour contour)
 {
   float sum = 0.0f;
 
-  size_t num_vertices = contour.vertices.len - 1;
+  size_t num_vertices = contour.vertices.len;
   for (size_t i = 0; i < num_vertices; ++i)
   {
-    struct Vec2 v1 = *vec2_array_at(contour.vertices, i % num_vertices);
+    struct Vec2 v1 = *vec2_array_at(contour.vertices, i);
     struct Vec2 v2 = *vec2_array_at(contour.vertices, (i + 1) % num_vertices);
     sum += vec2_cross(v1, v2);
   }
@@ -185,7 +185,7 @@ bool is_in_triangle(struct Vec2 p, struct Vec2 a, struct Vec2 b, struct Vec2 c)
   float o3 = get_orientation(c, a, p);
 
   bool all_pos = o1 > 0.0f && o2 > 0.0f && o3 > 0.0f;
-  bool all_neg = o1 < 0.0f && 02 < 0.0f && o3 < 0.0f;
+  bool all_neg = o1 < 0.0f && o2 < 0.0f && o3 < 0.0f;
 
   return all_pos || all_neg;
 }
@@ -200,18 +200,19 @@ bool triangulate(struct Contour contour, float winding, struct UInt32_Array* ind
   }
   
   size_t i = 0;
-  while (vertices.len)
+  while (vertices.len > 2)
   {
     struct Vec2 curr = *vec2_array_at(vertices, i);
 
     size_t prev_pos = (i + vertices.len - 1) % vertices.len;
     struct Vec2 prev = *vec2_array_at(vertices, prev_pos);
 
-    size_t next_pos = (i + 1) & vertices.len;
+    size_t next_pos = (i + 1) % vertices.len;
     struct Vec2 next = *vec2_array_at(vertices, next_pos);
 
     if (!is_convex(winding, prev, curr, next))
     {
+      fprintf(stdout, "triangle at %zu:%zu:%zu is not a convex\n", prev_pos, i, next_pos);
       i = (i + 1) % vertices.len;
       continue;
     }
