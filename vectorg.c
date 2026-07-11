@@ -17,6 +17,8 @@
 #define FB_WIDTH 1920
 #endif
 
+#define PI 3.14159265358979323846f
+
 struct Vec2
 {
   float x;
@@ -98,6 +100,52 @@ bool box_to(struct Vec2 top_left, struct Vec2 bottom_right, struct Command_Array
   }
 
   cmd = (struct Command){.type = Command_Type_Close};
+  if (!command_array_push(cmds, cmd))
+  {
+    return false;
+  }
+
+  return true;
+}
+
+bool circle_to(struct Vec2 center, float radius, struct Command_Array* cmds)
+{
+  float const tolerance = 0.25f;
+
+  size_t segments;
+  if (radius <= tolerance)
+  {
+    segments = 8;
+  }
+  else
+  {
+    float arg = 1.0f - tolerance / radius;
+    if (arg < -1.0f)
+    {
+      arg = -1.0f;
+    }
+
+    segments = (size_t)ceilf(PI / acosf(arg));
+    if (segments < 8)
+    {
+      segments = 8;
+    }
+  }
+
+  float const step = 2.0f * PI / (float)segments;
+  for (size_t i = 0; i < segments; ++i)
+  {
+    float angle = step * (float)i;
+    struct Vec2 point = vec2_new(center.x + radius * cosf(angle), center.y + radius * sinf(angle));
+
+    struct Command cmd = (i == 0) ? command_move_to(point) : command_line_to(point);
+    if (!command_array_push(cmds, cmd))
+    {
+      return false;
+    }
+  }
+
+  struct Command cmd = (struct Command){.type = Command_Type_Close};
   if (!command_array_push(cmds, cmd))
   {
     return false;
@@ -328,6 +376,34 @@ void draw_indexed(uint32_t* fb, struct Vec2_Array vertices, struct UInt32_Array 
   }
 }
 
+bool render_shape(uint32_t* fb, struct Command_Array cmds)
+{
+  struct Contour contour = contour_new();
+  if (!contour_for(cmds, &contour))
+  {
+    fprintf(stderr, "failed to compute contour for shape\n");
+    contour_drop(&contour);
+    return false;
+  }
+
+  float winding = get_winding(contour);
+  struct UInt32_Array indices = uint32_array_new();
+
+  if (!triangulate(contour, winding, &indices))
+  {
+    fprintf(stderr, "failed to triangulate the shape\n");
+    uint32_array_drop(&indices);
+    contour_drop(&contour);
+    return false;
+  }
+
+  draw_indexed(fb, contour.vertices, indices);
+
+  uint32_array_drop(&indices);
+  contour_drop(&contour);
+  return true;
+}
+
 int main(int argc, char* argv[])
 {
   if (argc < 2)
@@ -354,32 +430,24 @@ int main(int argc, char* argv[])
     return 1;
   }
 
-  struct Contour contour = contour_new();
-  if (!contour_for(box, &contour))
+  struct Command_Array circle = {0};
+  if (!circle_to(vec2_new(1200, 700), 300, &circle))
   {
-    fprintf(stderr, "failed to compute contour for shape\n");
+    fprintf(stderr, "failed to construct commands for circle\n");
     command_array_drop(&box);
     free(fb);
     return 1;
   }
 
-  float winding = get_winding(contour);
-  struct UInt32_Array indices = uint32_array_new();
-
-  if (!triangulate(contour, winding, &indices))
+  if (!render_shape(fb, box) || !render_shape(fb, circle))
   {
-    fprintf(stderr, "failed to triangulate the shape\n");
-
-    contour_drop(&contour);
+    command_array_drop(&circle);
     command_array_drop(&box);
     free(fb);
     return 1;
   }
 
-  draw_indexed(fb, contour.vertices, indices);
-
-  uint32_array_drop(&indices);
-  contour_drop(&contour);
+  command_array_drop(&circle);
   command_array_drop(&box);
 
   stbi_write_png(argv[1], FB_WIDTH, FB_HEIGHT, sizeof(uint32_t), fb, FB_WIDTH * sizeof(uint32_t));
