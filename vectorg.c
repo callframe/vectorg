@@ -1,3 +1,4 @@
+#include <math.h>
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -294,8 +295,37 @@ uint32_t triangle_color(size_t i)
   return 0xFF000000u | (b << 16) | (g << 8) | r;
 }
 
-void draw_indexed(uint32_t* fb, struct Vec2_Array vertices, struct UInt32_Array indices) {
-  
+void draw_indexed(uint32_t* fb, struct Vec2_Array vertices, struct UInt32_Array indices)
+{
+  for (size_t r = 0; r + 2 < indices.len; r += 3)
+  {
+    struct Vec2 a = *vec2_array_at(vertices, *uint32_array_at(indices, r + 0));
+    struct Vec2 b = *vec2_array_at(vertices, *uint32_array_at(indices, r + 1));
+    struct Vec2 c = *vec2_array_at(vertices, *uint32_array_at(indices, r + 2));
+
+    int32_t minx = (int32_t)floorf(fminf(a.x, fminf(b.x, c.x)));
+    int32_t maxx = (int32_t)ceilf(fmaxf(a.x, fmaxf(b.x, c.x)));
+    int32_t miny = (int32_t)floorf(fminf(a.y, fminf(b.y, c.y)));
+    int32_t maxy = (int32_t)ceilf(fmaxf(a.y, fmaxf(b.y, c.y)));
+
+    if (minx < 0) minx = 0;
+    if (miny < 0) miny = 0;
+    if (maxx > FB_WIDTH - 1) maxx = FB_WIDTH - 1;
+    if (maxy > FB_HEIGHT - 1) maxy = FB_HEIGHT - 1;
+
+    uint32_t color = triangle_color(r);
+    for (int32_t y = miny; y <= maxy; ++y)
+    {
+      for (int32_t x = minx; x <= maxx; ++x)
+      {
+        struct Vec2 p = vec2_new(x + 0.5f, y + 0.5f);
+        if (is_in_triangle(p, a, b, c))
+        {
+          fb[y * FB_WIDTH + x] = color;
+        }
+      }
+    }
+  }
 }
 
 int main(int argc, char* argv[])
@@ -345,6 +375,8 @@ int main(int argc, char* argv[])
     free(fb);
     return 1;
   }
+
+  draw_indexed(fb, contour.vertices, indices);
 
   uint32_array_drop(&indices);
   contour_drop(&contour);
