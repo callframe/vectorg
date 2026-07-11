@@ -3,6 +3,7 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #include "stb_image_write.h"
@@ -204,7 +205,7 @@ struct Indexed_Vec2
 #include "array.c"
 
 bool indexed_vertices_from_vertices(struct Vec2_Array vertices,
-                                        struct Indexed_Vec2_Array* out_indexed)
+                                    struct Indexed_Vec2_Array* out_indexed)
 {
   if (!indexed_vec2_array_reserve(out_indexed, vertices.len))
   {
@@ -284,6 +285,19 @@ bool triangulate(struct Contour contour, float winding, struct UInt32_Array* ind
   return true;
 }
 
+uint32_t triangle_color(size_t i)
+{
+  uint32_t h = (uint32_t)(i + 1) * 2654435761u;
+  uint8_t r = 0x40 | (h & 0xFF);
+  uint8_t g = 0x40 | ((h >> 8) & 0xFF);
+  uint8_t b = 0x40 | ((h >> 16) & 0xFF);
+  return 0xFF000000u | (b << 16) | (g << 8) | r;
+}
+
+void draw_indexed(uint32_t* fb, struct Vec2_Array vertices, struct UInt32_Array indices) {
+  
+}
+
 int main(int argc, char* argv[])
 {
   if (argc < 2)
@@ -292,12 +306,15 @@ int main(int argc, char* argv[])
     return EXIT_FAILURE;
   }
 
-  uint32_t* fb = aligned_alloc(_Alignof(uint32_t), sizeof(uint32_t) * (FB_WIDTH * FB_HEIGHT));
+  size_t fb_size = sizeof(uint32_t) * (FB_WIDTH * FB_HEIGHT);
+  uint32_t* fb = aligned_alloc(_Alignof(uint32_t), fb_size);
   if (fb == NULL)
   {
     fprintf(stderr, "failed to allocate framebuffer of size %dx%d\n", FB_WIDTH, FB_HEIGHT);
     return 1;
   }
+
+  memset(fb, 0xff, fb_size);
 
   struct Command_Array box = {0};
   if (!box_to(vec2_new(400, 500), vec2_new(800, 900), &box))
