@@ -109,13 +109,14 @@ bool __ARRAY_CONCAT(__ARRAY_FUNCS_NAME, _push)(struct __ARRAY_NAME* array, __ARR
   return true;
 }
 
-bool __ARRAY_CONCAT(__ARRAY_FUNCS_NAME, _remove)(struct __ARRAY_NAME* array, size_t index, __ARRAY_T* out_item)
+bool __ARRAY_CONCAT(__ARRAY_FUNCS_NAME, _remove)(struct __ARRAY_NAME* array, size_t index,
+                                                 __ARRAY_T* out_item)
 {
   if (index >= array->len)
   {
     return false;
   }
-  
+
   if (out_item != NULL)
   {
     *out_item = *__ARRAY_CONCAT(__ARRAY_FUNCS_NAME, _at)(*array, index);
@@ -130,6 +131,20 @@ bool __ARRAY_CONCAT(__ARRAY_FUNCS_NAME, _remove)(struct __ARRAY_NAME* array, siz
   }
 
   array->len--;
+  return true;
+}
+
+bool __ARRAY_CONCAT(__ARRAY_FUNCS_NAME, _clone)(struct __ARRAY_NAME array,
+                                                struct __ARRAY_NAME* out_array)
+{
+  *out_array = __ARRAY_CONCAT(__ARRAY_FUNCS_NAME, _new)();
+  if (!__ARRAY_CONCAT(__ARRAY_FUNCS_NAME, _reserve)(out_array, array.len))
+  {
+    return false;
+  }
+
+  memcpy(out_array->items, array.items, array.len * sizeof(__ARRAY_T));
+  out_array->len = array.len;
   return true;
 }
 

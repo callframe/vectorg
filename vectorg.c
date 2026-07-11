@@ -23,6 +23,9 @@ struct Vec2
 
 #define vec2_new(x, y) ((struct Vec2){x, y})
 
+struct Vec2 vec2_sub(struct Vec2 a, struct Vec2 b) { return vec2_new(a.x - b.x, a.y - b.y); }
+float vec2_cross(struct Vec2 a, struct Vec2 b) { return (a.x * b.y) - (a.y * b.x); }
+
 #define __ARRAY_NAME Vec2_Array
 #define __ARRAY_FUNCS_NAME vec2_array
 #define __ARRAY_T struct Vec2
@@ -147,10 +150,107 @@ exit:
   return true;
 }
 
-// TOOD: currently uses shift-remove, instead use linked list
-bool triangulate(struct Contour contour, struct Vec2_Array* vertices, struct UInt32_Array* indices)
+float get_winding(struct Contour contour)
 {
- return true; 
+  float sum = 0.0f;
+
+  size_t num_vertices = contour.vertices.len - 1;
+  for (size_t i = 0; i < num_vertices; ++i)
+  {
+    struct Vec2 v1 = *vec2_array_at(contour.vertices, i % num_vertices);
+    struct Vec2 v2 = *vec2_array_at(contour.vertices, (i + 1) % num_vertices);
+    sum += vec2_cross(v1, v2);
+  }
+
+  return sum;
+}
+
+float get_orientation(struct Vec2 prev, struct Vec2 curr, struct Vec2 next)
+{
+  struct Vec2 v1 = vec2_sub(curr, prev);
+  struct Vec2 v2 = vec2_sub(next, curr);
+  return vec2_cross(v1, v2);
+}
+
+bool is_convex(float winding, struct Vec2 prev, struct Vec2 curr, struct Vec2 next)
+{
+  float orientation = get_orientation(prev, curr, next);
+  return (winding * orientation) > 0.0f;
+}
+
+bool is_in_triangle(struct Vec2 p, struct Vec2 a, struct Vec2 b, struct Vec2 c)
+{
+  float o1 = get_orientation(a, b, p);
+  float o2 = get_orientation(b, c, p);
+  float o3 = get_orientation(c, a, p);
+
+  bool all_pos = o1 > 0.0f && o2 > 0.0f && o3 > 0.0f;
+  bool all_neg = o1 < 0.0f && 02 < 0.0f && o3 < 0.0f;
+
+  return all_pos || all_neg;
+}
+
+// TOOD: currently uses shift-remove, instead use linked list
+bool triangulate(struct Contour contour, float winding, struct UInt32_Array* indices)
+{
+  struct Vec2_Array vertices = {0};
+  if (!vec2_array_clone(contour.vertices, &vertices))
+  {
+    return false;
+  }
+  
+  size_t i = 0;
+  while (vertices.len)
+  {
+    struct Vec2 curr = *vec2_array_at(vertices, i);
+
+    size_t prev_pos = (i + vertices.len - 1) % vertices.len;
+    struct Vec2 prev = *vec2_array_at(vertices, prev_pos);
+
+    size_t next_pos = (i + 1) & vertices.len;
+    struct Vec2 next = *vec2_array_at(vertices, next_pos);
+
+    if (!is_convex(winding, prev, curr, next))
+    {
+      i = (i + 1) % vertices.len;
+      continue;
+    }
+
+    bool is_blocked = false;
+    for (size_t j = 0; j < vertices.len; ++j)
+    {
+      if (j == prev_pos || j == i || j == next_pos)
+      {
+        continue;
+      }
+
+      struct Vec2 point = *vec2_array_at(vertices, j);
+      if (is_in_triangle(point, prev, curr, next))
+      {
+        is_blocked = true;
+        break;
+      }
+    }
+
+    if (is_blocked)
+    {
+      i = (i + 1) % vertices.len;
+      continue;
+    }
+
+    vec2_array_remove(&vertices, i, NULL);
+    if(!uint32_array_reserve(indices, 3)) {
+      vec2_array_drop(&vertices);
+      return false;
+    }
+    
+    uint32_array_push(indices, prev_pos);
+    uint32_array_push(indices, i);
+    uint32_array_push(indices, next_pos);
+  }
+
+  vec2_array_drop(&vertices);
+  return true;
 }
 
 int main(int argc, char* argv[])
@@ -185,9 +285,11 @@ int main(int argc, char* argv[])
     return 1;
   }
 
-  struct Vec2_Array vertices = vec2_array_new();
+  float winding = get_winding(contour);
   struct UInt32_Array indices = uint32_array_new();
-  if(!triangulate(contour, &vertices, &indices)) {
+
+  if (!triangulate(contour, winding, &indices))
+  {
     fprintf(stderr, "failed to triangulate the shape\n");
 
     contour_drop(&contour);
@@ -197,7 +299,6 @@ int main(int argc, char* argv[])
   }
 
   uint32_array_drop(&indices);
-  vec2_array_drop(&vertices);
   contour_drop(&contour);
   command_array_drop(&box);
 
