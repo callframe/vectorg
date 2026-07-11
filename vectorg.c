@@ -19,6 +19,8 @@
 
 #define PI 3.14159265358979323846f
 
+#define TOLERANCE 0.25f
+
 struct Vec2
 {
   float x;
@@ -110,16 +112,14 @@ bool box_to(struct Vec2 top_left, struct Vec2 bottom_right, struct Command_Array
 
 bool circle_to(struct Vec2 center, float radius, struct Command_Array* cmds)
 {
-  float const tolerance = 0.25f;
-
   size_t segments;
-  if (radius <= tolerance)
+  if (radius <= TOLERANCE)
   {
     segments = 8;
   }
   else
   {
-    float arg = 1.0f - tolerance / radius;
+    float arg = 1.0f - TOLERANCE / radius;
     if (arg < -1.0f)
     {
       arg = -1.0f;
@@ -132,10 +132,118 @@ bool circle_to(struct Vec2 center, float radius, struct Command_Array* cmds)
     }
   }
 
-  float const step = 2.0f * PI / (float)segments;
+  float step = 2.0f * PI / (float)segments;
   for (size_t i = 0; i < segments; ++i)
   {
     float angle = step * (float)i;
+    struct Vec2 point = vec2_new(center.x + radius * cosf(angle), center.y + radius * sinf(angle));
+
+    struct Command cmd = (i == 0) ? command_move_to(point) : command_line_to(point);
+    if (!command_array_push(cmds, cmd))
+    {
+      return false;
+    }
+  }
+
+  struct Command cmd = (struct Command){.type = Command_Type_Close};
+  if (!command_array_push(cmds, cmd))
+  {
+    return false;
+  }
+
+  return true;
+}
+
+bool ellipse_to(struct Vec2 center, float rx, float ry, struct Command_Array* cmds)
+{
+  float radius = fmaxf(rx, ry);
+
+  size_t segments;
+  if (radius <= TOLERANCE)
+  {
+    segments = 8;
+  }
+  else
+  {
+    float arg = 1.0f - TOLERANCE / radius;
+    if (arg < -1.0f)
+    {
+      arg = -1.0f;
+    }
+
+    segments = (size_t)ceilf(PI / acosf(arg));
+    if (segments < 8)
+    {
+      segments = 8;
+    }
+  }
+
+  float step = 2.0f * PI / (float)segments;
+  for (size_t i = 0; i < segments; ++i)
+  {
+    float angle = step * (float)i;
+    struct Vec2 point = vec2_new(center.x + rx * cosf(angle), center.y + ry * sinf(angle));
+
+    struct Command cmd = (i == 0) ? command_move_to(point) : command_line_to(point);
+    if (!command_array_push(cmds, cmd))
+    {
+      return false;
+    }
+  }
+
+  struct Command cmd = (struct Command){.type = Command_Type_Close};
+  if (!command_array_push(cmds, cmd))
+  {
+    return false;
+  }
+
+  return true;
+}
+
+bool polygon_to(struct Vec2 center, float radius, size_t sides, float rotation,
+                struct Command_Array* cmds)
+{
+  if (sides < 3)
+  {
+    sides = 3;
+  }
+
+  float step = 2.0f * PI / (float)sides;
+  for (size_t i = 0; i < sides; ++i)
+  {
+    float angle = rotation + step * (float)i;
+    struct Vec2 point = vec2_new(center.x + radius * cosf(angle), center.y + radius * sinf(angle));
+
+    struct Command cmd = (i == 0) ? command_move_to(point) : command_line_to(point);
+    if (!command_array_push(cmds, cmd))
+    {
+      return false;
+    }
+  }
+
+  struct Command cmd = (struct Command){.type = Command_Type_Close};
+  if (!command_array_push(cmds, cmd))
+  {
+    return false;
+  }
+
+  return true;
+}
+
+bool star_to(struct Vec2 center, float outer_radius, float inner_radius, size_t points,
+             float rotation, struct Command_Array* cmds)
+{
+  if (points < 2)
+  {
+    points = 2;
+  }
+
+  size_t vertices = points * 2;
+  float step = PI / (float)points;
+  for (size_t i = 0; i < vertices; ++i)
+  {
+    float radius = (i % 2 == 0) ? outer_radius : inner_radius;
+    float angle = rotation + step * (float)i;
     struct Vec2 point = vec2_new(center.x + radius * cosf(angle), center.y + radius * sinf(angle));
 
     struct Command cmd = (i == 0) ? command_move_to(point) : command_line_to(point);
@@ -423,32 +531,42 @@ int main(int argc, char* argv[])
   memset(fb, 0xff, fb_size);
 
   struct Command_Array box = {0};
-  if (!box_to(vec2_new(400, 500), vec2_new(800, 900), &box))
-  {
-    fprintf(stderr, "failed to construct commands for box\n");
-    free(fb);
-    return 1;
-  }
-
   struct Command_Array circle = {0};
-  if (!circle_to(vec2_new(1200, 700), 300, &circle))
-  {
-    fprintf(stderr, "failed to construct commands for circle\n");
-    command_array_drop(&box);
-    free(fb);
-    return 1;
-  }
+  struct Command_Array ellipse = {0};
+  struct Command_Array hexagon = {0};
+  struct Command_Array star = {0};
 
-  if (!render_shape(fb, box) || !render_shape(fb, circle))
+  bool ok = box_to(vec2_new(150, 500), vec2_new(550, 900), &box) &&
+            circle_to(vec2_new(950, 700), 200, &circle) &&
+            ellipse_to(vec2_new(1500, 700), 300, 150, &ellipse) &&
+            polygon_to(vec2_new(400, 250), 180, 6, -PI / 2.0f, &hexagon) &&
+            star_to(vec2_new(1100, 250), 200, 80, 5, -PI / 2.0f, &star);
+  if (!ok)
   {
+    fprintf(stderr, "failed to construct commands for a shape\n");
+    command_array_drop(&star);
+    command_array_drop(&hexagon);
+    command_array_drop(&ellipse);
     command_array_drop(&circle);
     command_array_drop(&box);
     free(fb);
     return 1;
   }
 
+  ok = render_shape(fb, box) && render_shape(fb, circle) && render_shape(fb, ellipse) &&
+       render_shape(fb, hexagon) && render_shape(fb, star);
+
+  command_array_drop(&star);
+  command_array_drop(&hexagon);
+  command_array_drop(&ellipse);
   command_array_drop(&circle);
   command_array_drop(&box);
+
+  if (!ok)
+  {
+    free(fb);
+    return 1;
+  }
 
   stbi_write_png(argv[1], FB_WIDTH, FB_HEIGHT, sizeof(uint32_t), fb, FB_WIDTH * sizeof(uint32_t));
   free(fb);
