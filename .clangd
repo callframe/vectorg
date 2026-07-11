@@ -1,0 +1,5 @@
+CompileFlags:
+  Add:
+    # - -D__ARRAY_NAME=Int_Array
+    # - -D__ARRAY_FUNCS_NAME=int_array
+    # - -D__ARRAY_T=int
