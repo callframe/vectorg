@@ -109,7 +109,8 @@ struct Contour
 
 #define contour_new() ((struct Contour){vec2_array_new(), false})
 
-void contour_drop(struct Contour* contour) {
+void contour_drop(struct Contour* contour)
+{
   vec2_array_drop(&contour->vertices);
   *contour = contour_new();
 }
@@ -146,6 +147,12 @@ exit:
   return true;
 }
 
+// TOOD: currently uses shift-remove, instead use linked list
+bool triangulate(struct Contour contour, struct Vec2_Array* vertices, struct UInt32_Array* indices)
+{
+ return true; 
+}
+
 int main(int argc, char* argv[])
 {
   if (argc < 2)
@@ -172,12 +179,25 @@ int main(int argc, char* argv[])
   struct Contour contour = contour_new();
   if (!contour_for(box, &contour))
   {
-    fprintf(stderr, "failed to compute contour for shape");
+    fprintf(stderr, "failed to compute contour for shape\n");
     command_array_drop(&box);
     free(fb);
     return 1;
   }
 
+  struct Vec2_Array vertices = vec2_array_new();
+  struct UInt32_Array indices = uint32_array_new();
+  if(!triangulate(contour, &vertices, &indices)) {
+    fprintf(stderr, "failed to triangulate the shape\n");
+
+    contour_drop(&contour);
+    command_array_drop(&box);
+    free(fb);
+    return 1;
+  }
+
+  uint32_array_drop(&indices);
+  vec2_array_drop(&vertices);
   contour_drop(&contour);
   command_array_drop(&box);
 

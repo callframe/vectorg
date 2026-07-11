@@ -1,6 +1,6 @@
 CC = clang
 CFLAGS = -std=c17 -Wall -Wextra -MMD -MP
-LDFLAGS = -lm
+LDFLAGS =
 
 TOPDIR = .
 

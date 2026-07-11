@@ -2,6 +2,7 @@
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdlib.h>
+#include <string.h>
 
 #define ___ARRAY_CONCAT(x, y) x##y
 #define __ARRAY_CONCAT(x, y) ___ARRAY_CONCAT(x, y)
@@ -105,6 +106,30 @@ bool __ARRAY_CONCAT(__ARRAY_FUNCS_NAME, _push)(struct __ARRAY_NAME* array, __ARR
 
   *__ARRAY_CONCAT(__ARRAY_FUNCS_NAME, _at)(*array, array->len) = item;
   array->len++;
+  return true;
+}
+
+bool __ARRAY_CONCAT(__ARRAY_FUNCS_NAME, _remove)(struct __ARRAY_NAME* array, size_t index, __ARRAY_T* out_item)
+{
+  if (index >= array->len)
+  {
+    return false;
+  }
+  
+  if (out_item != NULL)
+  {
+    *out_item = *__ARRAY_CONCAT(__ARRAY_FUNCS_NAME, _at)(*array, index);
+  }
+
+  size_t num_items_after = array->len - index - 1;
+  if (num_items_after > 0)
+  {
+    __ARRAY_T* src = __ARRAY_CONCAT(__ARRAY_FUNCS_NAME, _at)(*array, index + 1);
+    __ARRAY_T* dest = __ARRAY_CONCAT(__ARRAY_FUNCS_NAME, _at)(*array, index);
+    memmove(dest, src, num_items_after * sizeof(__ARRAY_T));
+  }
+
+  array->len--;
   return true;
 }
 
